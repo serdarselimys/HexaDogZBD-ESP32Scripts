@@ -1,3 +1,5 @@
+![Screenshot](6.png)
+
 # HexaDog ZBD — ESP32 Firmware
 
 Firmware for an 18-servo hexapod running on an ESP32. It handles walking, body leveling, scripted "emote" animations, an on-screen settings menu, idle "alive" motion, puppet mode, servo and IMU calibration, live telemetry over UDP, and an animated eye display.
