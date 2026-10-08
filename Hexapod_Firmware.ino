@@ -91,34 +91,18 @@ const float NEUTRAL_H_MIN  =  0.18f,  NEUTRAL_H_MAX  = 0.22f,  NEUTRAL_H_STEP  =
 const float STEP_H_MIN     =  0.005f, STEP_H_MAX     = 0.02f,  STEP_H_STEP     = 0.0025f;
 
 // ============================================================
-// BALANCE / IMU / BODY-LEVELING TUNING  (v10 -- Kalman-based, decluttered)
+// BALANCE / IMU / BODY-LEVELING TUNING
 // ============================================================
-// Complementary filter, EMA smoothing, rate-limited slew, integral term,
-// and the ramp/incline climbing assist subsystem have all been removed --
-// none of them existed in the PyBullet-bench-validated version
-// (sim_only.py) this firmware is now matched to. The bow/tilt auto-cal
-// dance is KEPT (still needed to determine the real board's mounting
-// axis/sign), but calApplyRemap() no longer derives filter gains from
-// measured noise -- the three Kalman parameters below stay at their
-// bench-validated fixed defaults regardless of what auto-cal measures.
 
 const unsigned long BOOT_DURATION_MS = 2500;
 const int   GYRO_CALIB_SAMPLES  = 200;
 const float GYRO_CALIB_SAMPLE_MS = 10.0f;
 
-// ---- Kalman filter (2-state: angle + gyro-bias, per axis) -- replaces
-// the old complementary filter entirely. Defaults are the exact values
-// validated on the IMU_Bench_Test.ino bench rig; live-tunable over UDP.
-// Internally the filter runs in DEGREES (see kalmanUpdateDeg in the gait
-// file) specifically so these numbers carry over unchanged from the
-// bench -- rescaling them into radians-space would silently change what
-// they mean. ----
+
 float KALMAN_Q_ANGLE   = 0.001f;   // process noise: trust in the angle prediction
 float KALMAN_Q_BIAS    = 0.003f;   // process noise: expected gyro-bias drift rate
 float KALMAN_R_MEASURE = 0.03f;    // measurement noise: trust in the accel-derived angle
 
-// ---- Body leveling: exact geometric solution (full Ry(pitch)*Rx(roll)
-// composition -- see computeBalanceCompensation in the gait file). ----
 const float LEVEL_GAIN_DEFAULT = 1.0f;
 float LEVEL_GAIN = LEVEL_GAIN_DEFAULT;
 
@@ -128,45 +112,22 @@ const float BALANCE_BLEND_RAMP_SEC = 1.0f;
 // Target body height forced while balancing (m).
 const float BALANCE_TARGET_HEIGHT = 0.18f;
 
-// Hard deadband: tilt readings smaller than this are treated as exactly
-// level (zero compensation, not a scaled-down one). Single stage, no EMA
-// smoothing on top -- matches sim_only.py exactly.
 float LEVEL_DEADBAND_DEG = 2.0f;
-// Low-pass on the angles used for LEVELING only (the Kalman output itself is
-// untouched). Puts back the smoothing that slow IMU sampling used to provide
-// by accident. Raise if leveling still oscillates, lower for a snappier
-// response, 0 to disable entirely.
 float LEVEL_SMOOTH_TAU_S = 0.20f;
-
-// Hard cap on how far leveling will attempt to compensate for. Past this
-// the robot becomes physically unstable (bench+sim validated) -- the
-// commanded correction holds at whatever it was targeting at this angle
-// rather than continuing to escalate toward the true (larger) tilt.
 float LEVEL_MAX_TILT_DEG = 15.0f;
 
-// Fixed safety ceilings on commanded x/y/z leg-target compensation, each
-// ALSO clamped dynamically against remaining leg reach at runtime (see
-// currentReachMargin() in the gait file).
+
 const float LEVEL_MAX_DELTA_Z  = 0.08f;
 const float LEVEL_MAX_DELTA_XY = 0.03f;
 
 // ---- Manual pitch trim -- L2(nose down)/R2(nose up), WALKING MODE ONLY.
-// Locked out while balance_enabled (body leveling) to avoid the two
-// fighting each other; any trim held when leveling engages ramps back to
-// exactly 0 at this same speed rather than snapping (see KinematicsTask).
 const float PITCH_TRIM_SPEED_DEG_S = 8.0f;
 const float PITCH_TRIM_MAX_DEG     = 20.0f;
 
 // ---- Reach-margin dynamic clamp ----
-// (LEG_MAX_REACH mirrors solve_leg_ik_3dof's own 0.99*(L1+L2) limit)
 const float LEG_MAX_REACH = (0.1000f + 0.1000f) * 0.99f;
 
-// ---- Bow/tilt auto-calibration dance -- KEPT ----
-// Determines IMU axis mapping + sign convention + gyro bias by physically
-// shifting legs a known amount and watching the IMU response. No longer
-// derives filter gains (see note above) -- just axis mapping and bias.
-// Defaults reproduce the hardware's original hardwired axis convention,
-// so if calibration never runs (or fails), that convention is unchanged.
+// ---- Bow/tilt auto-calibration dance -- 
 const float CAL_ZERO_DURATION_S   = 1.0f;
 const float CAL_BOW_DURATION_S    = 1.0f;
 const float CAL_HOLD_DURATION_S   = 0.5f;
@@ -185,31 +146,15 @@ const float FOOTING_STABLE_S       = 0.5f;
 const float JOYSTICK_DEADZONE = 0.12;
 
 // ----- Stick axis snap (see processControlInput) -----
-// Within this many degrees of pure forward/back, the sideways component is
-// zeroed; within the same angle of pure sideways, the forward component is
-// zeroed. Keeps slight stick error from engaging the diagonal gait.
-// Diagonal still has the full band between the two snap zones.
 const float AXIS_SNAP_DEG      = 10.0f;
 const float AXIS_SNAP_HYST_DEG = 2.0f;   // release angle = SNAP + HYST
 
 const float TRIGGER_THRESHOLD = 0.05;
 
 // ============================================================
-// IDLE "ALIVE" MOTION  (ported from puppet_mode.py IdleLife)
+// IDLE "ALIVE" MOTION 
 // ============================================================
-// Active mode only: standing, not walking, balance OFF, not emoting, not
-// calibrating. Because it never runs while leveling is on, it can drive the
-// body attitude directly without fighting the leveling loop.
-//
-// Breathing is periodic (real breathing is). Postural drift is filtered
-// noise, NOT sines: a standing animal's balance loop never settles, it
-// drifts and catches itself with no period. One sine per axis is what makes
-// a robot look mechanical -- the eye locks onto the period in seconds.
-// Ornstein-Uhlenbeck noise (pulled toward zero) through a second smoothing
-// stage gives motion with no visible frequency and no visible steps.
-// Runtime toggle, on the Settings > Active Gait Settings page and saved to
-// flash. Was a compile-time constant; builders had no way to turn the idle
-// motion off without editing and re-flashing the firmware.
+
 bool idle_motion_enabled = true;
 
 const float IDLE_BREATH_PERIOD_S   = 4.2f;
@@ -230,23 +175,11 @@ const float IDLE_MAX_HEIGHT_M      = 0.020f;
 const float IDLE_FADE_IN_S         = 0.8f;    // returns fairly promptly
 const float IDLE_FADE_OUT_S        = 0.25f;   // gets out of the way at once
 
-// Sign flip for the attitude offsets. computeBalanceCompensation() is built
-// to CANCEL a measured tilt, so feeding it +angle produces -angle of body
-// motion. Idle angles are therefore negated on the way in. If the idle
-// motion ever looks inverted, flip this.
 const float IDLE_ATTITUDE_SIGN     = -1.0f;
 
 // ---- Inactivity timers ----
-// Idle motion waits for a quiet period rather than starting the instant the
-// stick is released, and the robot puts itself to sleep after a longer one.
-// BOTH timers are suspended (held reset) during emote mode, puppet mode and
-// calibration -- the robot must not sit down mid-emote just because nobody
-// is touching the sticks.
-const bool          AUTO_SLEEP_ENABLED = true;   // set false to never auto-sleep
-// Idle waits 5 s, which also gives the IMU calibration dance a still window
-// to trigger in (it needs 0.5 s of stable footing plus its settle time).
-// Idle no longer WAITS for the dance -- that could deadlock if the dance
-// never ran -- it just starts a little later than the dance needs.
+
+const bool          AUTO_SLEEP_ENABLED = true;   
 const unsigned long IDLE_START_MS      = 5000;
 const unsigned long AUTO_SLEEP_MS      = 60000;  // quiet time before sitting down
 const unsigned long AUTO_SLEEP_WARN_MS = 5000;   // on-screen warning before it happens
@@ -266,8 +199,8 @@ const char* AP_SSID = "HEXAPOD_ESP32";
 const char* AP_PASSWORD = "12345678";
 const uint16_t UDP_PORT = 5000;
 
-// ---- v10 PACKET LAYOUT ----
-// Bytes  0-19 : joy_fwd, joy_side, joy_spin, norm_lt, norm_rt (5x float32) -- UNCHANGED
+// ---- PACKET LAYOUT ----
+// Bytes  0-19 : joy_fwd, joy_side, joy_spin, norm_lt, norm_rt (5x float32) 
 // Byte   20   : buttons1 -- bits 0x01 A / 0x02 B / 0x04 L1 / 0x08 R1 /
 //               0x10 emoteModeToggle / 0x20 emotePlay / 0x40 emoteStop
 //               bit 0x80 RESERVED (was ramp-mount toggle, removed with ramp assist)
@@ -296,17 +229,12 @@ const uint16_t UDP_PORT = 5000;
 // BLUETOOTH GAMEPAD (optional second control source -- Robot_Bluetooth.h)
 // ============================================================
 // Needs the "ESP32 + Bluepad32" board package (see Robot_Bluetooth.h).
-// Building with the normal ESP32 package still works: Bluetooth support
-// then compiles out automatically and only the mobile app is used.
+
 #define ENABLE_BT_CONTROLLER 1
 
 // ---- PAIRING TEST MODE ----------------------------------------------
 // Set to 1 to start WITHOUT WiFi so the radio is dedicated to Bluetooth.
-// BT Classic pairing is the most timing-sensitive moment of the whole
-// connection, and sharing the radio with the WiFi AP is a common reason
-// it drops part-way (the "SDP device = NULL" error). The mobile app will
-// NOT work in this mode -- it is only for finding out whether WiFi is the
-// cause. Set back to 0 once pairing is confirmed.
+
 #define BT_PAIRING_TEST_NO_WIFI 0
 
 // Flip any of these to -1 if that stick moves the robot the wrong way.
@@ -358,15 +286,7 @@ const float PUPPET_ROLL_GAIN     = 0.5f;
 const float PUPPET_PITCH_GAIN    = 0.5f;
 const float PUPPET_YAW_GAIN      = 0.45f;   // left as-is: halving it feels dead
 
-// ---- One Euro filter on the incoming phone angles ----
-// A Kalman filter needs a process model, and "where will the user's hand be
-// next" has no meaningful one -- a constant-velocity KF just becomes a
-// low-pass with extra state. A plain low-pass forces one choice for both
-// cases: enough smoothing to kill tremor makes fast tilts feel sluggish.
-// One Euro adapts -- heavy smoothing when still, light when moving fast.
-// Filtering the three ANGLES (not the 18 joint outputs) is also cheaper and
-// cannot produce inconsistent leg targets, since all six legs derive from
-// one body attitude.
+
 //   MINCUTOFF down  = steadier when still, more lag when moving
 //   BETA      up    = more responsive to fast movement
 const float PUPPET_FILT_MINCUTOFF = 1.0f;   // Hz
@@ -439,23 +359,17 @@ float gyroBiasX = 0.0f;
 float gyroBiasY = 0.0f;
 bool  imuCalibrationDone = false;
 
-// Raw gyro (rad/s), kept around for the bow/tilt auto-cal dance to
-// integrate independent of whatever axis/sign convention is active.
 volatile float raw_gx = 0.0f, raw_gy = 0.0f, raw_gz = 0.0f;
 
 // ---- IMU AXIS REMAP (written by calApplyRemap() on successful auto-cal;
 // defaults below reproduce v8's original hardwired convention exactly) ----
-// kind: 0=ay_az  1=ax_az  2=ax_ay_az  3=ay_ax_az   (see computeAccelAngle)
-// gyro axis: 0=gx 1=gy 2=gz
 int   imuAccelPitchKind = 0;   float imuAccelPitchSign = -1.0f; // matches v8: -atan2(ay,az)
 int   imuAccelRollKind  = 2;   float imuAccelRollSign  = +1.0f; // matches v8: atan2(ax, sqrt(ay^2+az^2))
 int   imuGyroPitchAxis  = 1;   float imuGyroPitchSign  = -1.0f; // matches v8: -(gy - biasY)
 int   imuGyroRollAxis   = 0;   float imuGyroRollSign   = -1.0f; // matches v8: -(gx - biasX)
 float imuPitchBias = 0.0f, imuRollBias = 0.0f;      // mounting-tilt offset, subtracted every frame
 float imuGyroBiasPitch = 0.0f, imuGyroBiasRoll = 0.0f;
-// User "zero level" trim from the Settings > IMU Calibration page. Kept
-// separate from imuPitchBias/imuRollBias so the bow/tilt auto-cal and the
-// manual zero never overwrite each other. Persisted in "hexapod-ui".
+
 float imuUserPitchZero = 0.0f, imuUserRollZero = 0.0f;
 
 // ---- Manual pitch trim (walking mode only -- see KinematicsTask) ----
@@ -483,9 +397,7 @@ TaskHandle_t KinematicsTaskHandle;
 TaskHandle_t TelemetryTaskHandle;
 
 // ---- Settings menu input (sleep screen) ----
-// The gait task (Core 1) edge-detects D-pad / A / B from the UDP packet and
-// pushes one event per press into this queue; the screen task (Core 0) owns
-// all menu logic and consumes them. A queue keeps the two cores race-free.
+
 enum UiEvent : uint8_t { UI_UP = 1, UI_DOWN, UI_LEFT, UI_RIGHT, UI_ENTER, UI_BACK };
 QueueHandle_t uiInputQueue = NULL;
 
