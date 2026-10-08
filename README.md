@@ -48,7 +48,7 @@ All files sit in one sketch folder.
 
 | File | What's in it |
 |---|---|
-| `Hexapod_Firmwarev12.ino` | Every tunable constant (geometry, gait timing, leveling gains, idle motion, puppet mode, network, pins), hardware instances, shared state, `setup()`. **Start here to tune anything.** |
+| `Hexapod_Firmware.ino` | Every tunable constant (geometry, gait timing, leveling gains, idle motion, puppet mode, network, pins), hardware instances, shared state, `setup()`. **Start here to tune anything.** |
 | `Robot_Gait_Mechanism.h` | Inverse kinematics, gait blending, the `KinematicsTask` on Core 1, IMU Kalman filter and auto-calibration, body leveling, idle motion, puppet geometry, servo I/O with flash-persisted offsets. |
 | `Robot_Emotes.h` | The emote catalog and every scripted animation, plus the per-tick runner. |
 | `Robot_Bluetooth.h` | Bluetooth gamepad support (Bluepad32). Compiles to no-ops on the stock board package. |
@@ -194,7 +194,7 @@ Bluepad32 comes with the ESP32 + Bluepad32 **board package** — it is not a Lib
 
 ## Building & flashing
 
-1. Open `Hexapod_Firmwarev12.ino`. All four `.h` files must sit next to it.
+1. Open `Hexapod_Firmware.ino`. All four `.h` files must sit next to it.
 2. Configure `TFT_eSPI`'s `User_Setup.h` for your display.
 3. Select the board (see **Board setup** above) and the correct serial port.
 4. Upload.
